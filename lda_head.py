@@ -1,13 +1,12 @@
-import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 
 class LDAHead(nn.Module):
-    """LDA head with trainable class means and optional trainable priors.
+    """LDA head with trainable class means, shared variance, and optional trainable priors.
 
-    Class-conditionals are Gaussian with a shared fixed variance.
+    Class-conditionals are Gaussian with a shared trainable variance.
     """
 
     def __init__(self, C: int, D: int, fixed_variance: float = 1.0, train_priors: bool = True):
@@ -21,10 +20,10 @@ class LDAHead(nn.Module):
 
         self.C = C
         self.D = D
-        self.register_buffer("fixed_variance", torch.tensor(float(fixed_variance)))
-
         dtype = torch.get_default_dtype()
-        self.mu = nn.Parameter(torch.randn(C, D, dtype=dtype) * (1.0 / math.sqrt(D)))
+        self.log_variance = nn.Parameter(torch.log(torch.tensor(float(fixed_variance), dtype=dtype)))
+
+        self.mu = nn.Parameter(torch.zeros(C, D, dtype=dtype))
 
         if train_priors:
             self.prior_logits = nn.Parameter(torch.zeros(C, dtype=dtype))
@@ -37,7 +36,7 @@ class LDAHead(nn.Module):
 
         mu = self.mu.to(dtype=z.dtype, device=z.device)
         prior_logits = self.prior_logits.to(dtype=z.dtype, device=z.device)
-        var = self.fixed_variance.to(dtype=z.dtype, device=z.device)
+        var = F.softplus(self.log_variance).to(dtype=z.dtype, device=z.device)
 
         diff = z.unsqueeze(1) - mu.unsqueeze(0)  # (N, C, D)
         m2 = (diff * diff).sum(dim=-1)  # (N, C)
