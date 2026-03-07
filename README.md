@@ -1,2 +1,2 @@
-# pcf
-Ideas for PCF 2027-2029
+# Mean Collapse in Deep LDA
+Experiments from the paper
